@@ -2,7 +2,6 @@ import sqlite3
 # pyrefly: ignore [missing-import]
 from flask import Flask,render_template,jsonify,request,redirect,url_for,session
 
-
 app = Flask(__name__)
 app.secret_key="super_secret_key"
 
@@ -28,8 +27,9 @@ def init_db():
         course TEXT NOT NULL
     )
     """)
+    # create tasks table
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS task(
+    CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_email TEXT NOT NULL,
         title TEXT NOT NULL,
@@ -95,6 +95,7 @@ def api_login():
     user = cursor.fetchone()
     conn.close()
     if user and user["password"] == password:
+        # session variables to keep track of logged in user
         session["user_email"] = user["email"]
         session["user_name"] = user["name"]
         return jsonify({"status": "success", "message": "Login successful! Welcome back."})
@@ -104,82 +105,64 @@ def api_login():
 def logout():
     session.pop("user_email", None)
     session.pop("user_name", None)
-    return jsonify({"status": "success", "message": "Logout successful!"})
+    return redirect(url_for("login"))
+
 @app.route('/tasks',methods=["GET","POST"])
 def tasks():
     return render_template("tasks.html")
 @app.route('/api/tasks',methods=["GET"])
 def get_tasks():
+    # return tasks from database
     user_email = session.get("user_email")
     if not user_email:
-        return jsonify({"status":"error",
-        "message":"No user logged in!, Login please!"}),
-        401
+        return jsonify({"status":"error", "message":"No user logged in!,Login please!"}),401
     conn = get_db_connection()
-    cursor.execute("SELECT * FROM tasks WHERE
-    user_email = ?", (user_email,))
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE user_email = ?", (user_email,))
     tasks = cursor.fetchall()
     conn.close()
     task_list = [dict(row) for row in tasks]
-    return jsonify({"status": "success", "tasks":
-    task_list})
+    return jsonify({"status": "success", "tasks": task_list})
 @app.route('/api/tasks',methods=['POST'])
 def add_tasks():
+    # add tasks to database
     user_email = session.get("user_email")
     if not user_email:
-        return jsonify({"status":"error",
-        "message":"No user logged in!,Login please!"}),
-        401
+        return jsonify({"status":"error", "message":"No user logged in!,Login please!"}),401
     data = request.get_json()
     title = data.get("title")
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO tasks (user_email,
-    title) VALUES (?, ?)",(user_email, title))
+    cursor.execute("INSERT INTO tasks (user_email, title) VALUES (?, ?)", (user_email, title))
     conn.commit()
     conn.close()
-    return jsonify({"status": "success", "message":
-    "Task added successfully!"})
+    return jsonify({"status": "success", "message": "Task added successfully!"})
 @app.route('/api/tasks/<int:task_id>',methods=['PUT'])
 def update_tasks(task_id):
     user_email = session.get("user_email")
     if not user_email:
-        return jsonify({"status":"error",
-        "message":"No user logged in!,Login please!"}),
-        401
+        return jsonify({"status":"error", "message":"No user logged in!,Login please!"}),401
     data = request.get_json()
     status = data.get("status")
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE tasks SET status = ? WHERE
-    id = ?", (status task_id)) 
+    cursor.execute("UPDATE tasks SET status = ? WHERE id = ?", (status, task_id))
     conn.commit()
     conn.close()
-    return jsonify({"status": "success", "message":
-    "Task updated successfully!"})
-@app.route('/api/tasks/<int:task_id>', methods=
-['DELETE'])
-def delete_tasks(task id):
+    return jsonify({"status": "success", "message": "Task updated successfully!"})
+@app.route('/api/tasks/<int:task_id>',methods=['DELETE'])
+def delete_tasks(task_id):
     user_email=session.get("user_email")
     if not user_email:
-        return jsonify({"status":"error",
-        "message":No user logged in!,Login please}),
-        401
-        conn=get_db_connection()
-        curson=conn.cursor()
-        cursor.execute("DELETE FROM tasks WHERE
-        user_email=? AND id=?", (user_email,task_id))
-        conn.commit()
-        conn.close()
-        return jsonify({"status":"success",
-        "message":"Task deleted successfully!"})
-
+        return jsonify({"status":"error", "message":"No user logged in!,Login please!"}),401
+    conn=get_db_connection()
+    cursor=conn.cursor()
+    cursor.execute("DELETE FROM tasks WHERE user_email=? AND id=?",(user_email,task_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"status":"success", "message":"Task deleted successfully!"})
+    
+    
+    
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-
-
-
-
-
